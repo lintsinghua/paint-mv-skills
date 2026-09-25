@@ -1,0 +1,14 @@
+.DS_Store
+node_modules/
+
+# PDoomVideo's own source, fetched by skills/paint-mv/scripts/fetch_upstream.mjs (not redistributed here)
+skills/paint-mv/upstream/
+skills/paint-mv/template/render.mjs
+skills/paint-mv/template/studio.html
+skills/paint-mv/template/src/core.js
+skills/paint-mv/template/src/timeline.js
+skills/paint-mv/template/src/props.js
+skills/paint-mv/template/src/clawd.js
+skills/paint-mv/template/src/cast.js
+skills/paint-mv-animate/examples/c0*.js
+skills/paint-mv-storyboard/pdoom-storyboard.md

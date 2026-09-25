@@ -1,0 +1,216 @@
+diff -ruN a/render.mjs b/render.mjs
+--- a/render.mjs	2026-09-25 19:19:35
++++ b/render.mjs	2026-09-25 19:19:35
+@@ -3,26 +3,32 @@
+ //   node render.mjs --stills=0.8,3,23.8 --out=out/test                          full-res PNG stills
+ //   node render.mjs --clip=0:6 --fps=24 --out=out/test.mp4                      short clip with audio
+ //   node render.mjs --frames=0:156.6 --workers=4                                full-res JPEG frames → out/frames (resumable)
+-//   node render.mjs --encode [--out=out/pdoom.mp4]                               frames + song → MP4
++//   node render.mjs --encode [--out=out/mv.mp4]                                  frames + song → MP4
+ //   node render.mjs --loop=recursion [--out=out/loop_recursion]                 one cycle of a standalone loop (PNGs)
+ //   (--loop also works with --sheet, where the times are loop time)
++//   --chrome=<path> and --angle=<d3d11|metal|gl|vulkan|swiftshader> override the per-platform defaults below.
+ import puppeteer from 'puppeteer-core';
+ import { spawn } from 'node:child_process';
+-import { mkdirSync, writeFileSync, existsSync, statSync, renameSync, readdirSync } from 'node:fs';
++import { mkdirSync, writeFileSync, existsSync, statSync, renameSync, readdirSync, readFileSync } from 'node:fs';
+ import { dirname, resolve } from 'node:path';
+ import { pathToFileURL } from 'node:url';
++import vm from 'node:vm';
+ 
+ const args = Object.fromEntries(process.argv.slice(2).map(a => { const [k, v] = a.replace(/^--/, '').split('='); return [k, v ?? true]; }));
+-const CHROME = args.chrome || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+-const DUR = 156.6, fps = +(args.fps || 24);
++const SONG = vm.runInNewContext(readFileSync('src/song.js', 'utf8') + ';SONG');
++const CHROMES = { win32: ['C:/Program Files/Google/Chrome/Application/chrome.exe'], darwin: ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'],
++  linux: ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'] }[process.platform] || [];
++const CHROME = args.chrome || CHROMES.find(p => existsSync(p)) || CHROMES[0];
++const ANGLE = args.angle || { win32: 'd3d11', darwin: 'metal' }[process.platform];
++const DUR = SONG.duration, fps = +(args.fps || 24);
+ const FRAMES_DIR = 'out/frames';
+ 
+ const run = (cmd, a) => new Promise((ok, bad) => { const p = spawn(cmd, a, { stdio: 'inherit' }); p.on('close', c => c ? bad(new Error(cmd + ' exited ' + c)) : ok()); });
+ 
+ if (args.encode) {
+-  const out = args.out || 'out/pdoom.mp4', n = readdirSync(FRAMES_DIR).filter(f => f.endsWith('.jpg')).length;
++  const out = args.out || 'out/mv.mp4', n = readdirSync(FRAMES_DIR).filter(f => f.endsWith('.jpg')).length;
+   console.log(`encoding ${n} frames → ${out}`);
+-  await run('ffmpeg', ['-y', '-loglevel', 'error', '-stats', '-framerate', String(fps), '-i', `${FRAMES_DIR}/f%05d.jpg`, '-i', 'assets/pdoom.mp3',
++  await run('ffmpeg', ['-y', '-loglevel', 'error', '-stats', '-framerate', String(fps), '-i', `${FRAMES_DIR}/f%05d.jpg`, '-i', SONG.audio,
+     '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k',
+     '-movflags', '+faststart', '-shortest', out]);
+   console.log('wrote ' + out);
+@@ -31,7 +37,7 @@
+ 
+ const browser = await puppeteer.launch({
+   executablePath: CHROME, headless: true, protocolTimeout: 0,
+-  args: ['--allow-file-access-from-files', '--ignore-gpu-blocklist', '--use-angle=d3d11', '--enable-gpu-rasterization', '--window-size=1920,1080', '--disable-renderer-backgrounding', '--disable-background-timer-throttling']
++  args: ['--allow-file-access-from-files', '--ignore-gpu-blocklist', ...(ANGLE ? [`--use-angle=${ANGLE}`] : []), '--enable-gpu-rasterization', '--window-size=1920,1080', '--disable-renderer-backgrounding', '--disable-background-timer-throttling']
+ });
+ async function openPage(tag = '') {
+   const page = await browser.newPage();
+@@ -98,7 +104,7 @@
+   const [a, b] = args.clip ? String(args.clip).split(':').map(Number) : [0, DUR];
+   const out = args.out || 'out/clip.mp4'; mkdirSync(dirname(out), { recursive: true });
+   const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', '-',
+-    '-ss', String(a), '-t', String(b - a), '-i', 'assets/pdoom.mp3',
++    '-ss', String(a), '-t', String(b - a), '-i', SONG.audio,
+     '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'medium', '-crf', '19', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-shortest', out],
+     { stdio: ['pipe', 'inherit', 'inherit'] });
+   const n = Math.round((b - a) * fps), start = Date.now();
+diff -ruN a/src/core.js b/src/core.js
+--- a/src/core.js	2026-09-25 19:19:35
++++ b/src/core.js	2026-09-25 19:19:35
+@@ -1,6 +1,6 @@
+ // core.js: constants, helpers, paper, paint wrapper, compositing and render hooks.
+ const W = 1920, H = 1080;
+-const BPM = 88, BEAT = 60 / BPM, OFF = 0.21, BOIL = 12, DUR = 156.6;
++const BPM = SONG.bpm, BEAT = 60 / BPM, OFF = SONG.offset, BOIL = 12, DUR = SONG.duration;
+ const TAU = Math.PI * 2;
+ const PAL = {
+   paper: '#F3EBDC', ink: '#2B2233', clay: '#D97757', clayDk: '#A84D33', clayLt: '#F2A283',
+@@ -128,7 +128,7 @@
+   for (const L of LETTERS) {
+     const k = L.pop != null ? backOut(L.pop) : 1; if (k <= .01) continue;
+     c.save(); c.translate(L.x, L.y); c.rotate(L.rot || 0); c.scale(k, k); c.globalAlpha = L.alpha ?? 1;
+-    c.font = L.font || `${L.size}px "Permanent Marker", "Comic Sans MS", cursive`;
++    c.font = L.font || `${L.size}px "Permanent Marker", "ZCOOL KuaiLe", "Comic Sans MS", cursive`;
+     c.textAlign = L.align || 'center'; c.textBaseline = 'middle';
+     if (L.stroke) { c.lineJoin = 'round'; c.lineWidth = L.size * .12; c.strokeStyle = L.stroke; c.strokeText(L.txt, 0, 0); }
+     if (L.ink !== false) { c.fillStyle = PAL.ink; c.fillText(L.txt, L.size * .045, L.size * .055); }
+@@ -184,7 +184,9 @@
+   brush.scaleBrushes(5); defineBrushes();
+   paperG = makePaper(); grainC = makeGrain(); letG = createGraphics(W, H); letG.pixelDensity(1);
+   outC = document.getElementById('out'); outX = outC.getContext('2d');
+-  await Promise.all([document.fonts.load('100px "Permanent Marker"'), document.fonts.load('800 50px "Shantell Sans"')]);
++  // the CJK fallback font arrives in unicode-range slices: load every glyph the lyrics and title need before frame 0
++  const glyphs = [SONG.title, SONG.meterLabel, SONG.glyphs || '', ...LY.map(l => l[2])].join('') || 'a';
++  await Promise.all([document.fonts.load('100px "Permanent Marker"'), document.fonts.load('800 50px "Shantell Sans"'), document.fonts.load('50px "ZCOOL KuaiLe"', glyphs)]);
+   window.ready = true;
+   if (!location.search.includes('render')) devUI();
+ }
+@@ -222,6 +224,7 @@
+ 
+ function devUI() {
+   const s = document.getElementById('scrub'), lab = document.getElementById('tt');
++  s.max = DUR;
+   let busy = false, want = null;
+   const go = async () => { if (busy) return; busy = true; while (want != null) { const t = want; want = null; const t0 = performance.now(); await window.renderAt(t); lab.textContent = `${t.toFixed(2)}s  ·  ${Math.round(performance.now() - t0)} ms/frame`; } busy = false; };
+   s.addEventListener('input', () => { want = +s.value; go(); });
+diff -ruN a/src/props.js b/src/props.js
+--- a/src/props.js	2026-09-25 19:19:35
++++ b/src/props.js	2026-09-25 19:19:35
+@@ -6,7 +6,7 @@
+ //   o: { a, b } sunburst colours · backdrop: fn(t) replaces the sunburst · floor colour · curtain: 0 open → 1 closed
+ //      · alarm: 0..1 red siren wash · spots: [[x, colour], ...] spotlight cones hitting the floor at x.
+ // meterProp(x, y, s, v, o): standing thermometer, base on the floor at (x, y); s = 1 is ~560px tall. v = percent.
+-//   o: { cracked 0..1, glow, label (default 'P(DOOM)') }. Sets METER_SHOWN so the corner meter overlay hides.
++//   o: { cracked 0..1, glow, label (default SONG.meterLabel) }. Sets METER_SHOWN so the corner meter overlay hides.
+ // pumpProp(x, y, s, h): bicycle pump on the floor at (x, y), handle height h (0 down .. 1 up), hose runs to hoseTo [x, y].
+ // pumpH(t): handle height driven by the beat; the down-stroke lands exactly on each beat.
+ 
+@@ -94,7 +94,7 @@
+   // sign
+   paint(rrPts(-120, -610, 240, 70, 12, 2), { wash: WOOD, fill: WOOD_DK, fillOp: 60, tex: .6, ink: PAL.ink, sw });
+   pop();
+-  letterAt(o.label || 'P(DOOM)', x, y - 575 * s, 46 * s, PAL.cream);
++  letterAt(o.label || SONG.meterLabel, x, y - 575 * s, 46 * s, PAL.cream);
+   letterAt((v >= 99.5 ? v.toFixed(1) : Math.floor(v)) + '%', x, y - 92 * s, 40 * s, PAL.cream);
+ }
+ // letter() in local world coordinates (goes through the camera like any other letter)
+diff -ruN a/src/timeline.js b/src/timeline.js
+--- a/src/timeline.js	2026-09-25 19:19:35
++++ b/src/timeline.js	2026-09-25 19:19:35
+@@ -8,10 +8,10 @@
+ function chapter(name, start, end, shots) { CH.push({ name, start, end, shots }); CH.sort((a, b) => a.start - b.start); }
+ 
+ // Chapter breaks that get a brush wipe (cover by the boundary, reveal after it).
+-const WIPES = [1.5, 38.5, 73.0, 109.4];
++const WIPES = SONG.wipes;
+ const WIPE_TR = .3;
+ 
+-const METER = [[23, 35.5, 8, 34], [59, 69.9, 34, 61], [95.4, 105.4, 61, 86], [123.5, 132, 86, 99.9]];
++const METER = SONG.meter;
+ // P(doom) at time t: climbs in pump-sized steps on each beat during the chorus windows, holds in between.
+ function pdoomAt(t) {
+   let v = 5;
+@@ -62,7 +62,7 @@
+     for (let q = 1; q < 5; q++) inkLine([[-36, 62 + 300 * q / 5], [-16, 62 + 300 * q / 5]], .7, PAL.ink, 'inkfine', 0);
+     paint(ellPts(0, 410, 56, 56, 22, 2), { wash: col, washOp: 240, fill: PAL.ink, fillOp: 25, ink: PAL.ink, sw: 1.3 });
+     pop();
+-    letter('P(DOOM)', x, y + 14, 40 * k, PAL.cream, { rot: -.05 });
++    letter(SONG.meterLabel, x, y + 14, 40 * k, PAL.cream, { rot: -.05 });
+     letter(Math.floor(v) + '%', x, y + 410 * k * .85, 36 * k, PAL.cream);
+   }
+ }
+@@ -90,10 +90,12 @@
+ }
+ 
+ // ---------- karaoke ----------
++const KFONT = '800 50px "Shantell Sans", "ZCOOL KuaiLe", sans-serif';
++const CJK = /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uac00-\ud7af]/g;
+ function karaoke(t) {
+   const L = LY.find(l => t >= l[0] && t < l[1]); if (!L) return;
+   const [a, b, txt] = L;
+-  outX.font = '800 50px "Shantell Sans", sans-serif';
++  outX.font = KFONT;
+   const tw = outX.measureText(txt).width, grow = easeOut((t - a) / .18) * (1 - ease((t - (b - .12)) / .12));
+   if (grow < .02) return;
+   const w = (tw + 110) * grow, x0 = 960 - w / 2, y0 = 978;
+@@ -104,10 +106,11 @@
+ function drawKaraokeText(c) {
+   if (!KARAOKE || KARAOKE.grow < .85) return;
+   const { a, b, txt } = KARAOKE, t = T;
+-  c.font = '800 50px "Shantell Sans", sans-serif'; c.textBaseline = 'middle'; c.textAlign = 'left';
++  c.font = KFONT; c.textBaseline = 'middle'; c.textAlign = 'left';
+   const words = txt.split(' '), sp = c.measureText(' ').width, ws = words.map(w => c.measureText(w).width);
+   const total = ws.reduce((p, q) => p + q, 0) + sp * (words.length - 1);
+-  const singDur = Math.min(b - a - .1, .45 + txt.length * .075), sung = clamp((t - a) / singDur) * txt.replace(/ /g, '').length;
++  const cjk = (txt.match(CJK) || []).length;                         // a CJK character is sung about as long as 4 Latin letters
++  const singDur = Math.min(b - a - .1, .45 + (txt.length + 3 * cjk) * .075), sung = clamp((t - a) / singDur) * txt.replace(/ /g, '').length;
+   let x = 960 - total / 2, done = 0; const y = 1022;
+   words.forEach((w, i) => {
+     const f = clamp((sung - done) / w.length); done += w.length;
+diff -ruN a/studio.html b/studio.html
+--- a/studio.html	2026-09-25 19:19:35
++++ b/studio.html	2026-09-25 19:19:35
+@@ -2,8 +2,8 @@
+ <html>
+ <head>
+ <meta charset="utf-8">
+-<title>P(doom) studio</title>
+-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Shantell+Sans:wght@800&display=block">
++<title>MV studio</title>
++<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Shantell+Sans:wght@800&family=ZCOOL+KuaiLe&display=block">
+ <style>
+   html, body { margin: 0; background: #1b1820; color: #eee; font: 13px system-ui, sans-serif; }
+   main { padding: 12px; display: grid; gap: 8px; }
+@@ -19,8 +19,9 @@
+ <body>
+ <main>
+   <canvas id="out" width="1920" height="1080"></canvas>
+-  <div class="bar"><input id="scrub" type="range" min="0" max="156.6" step="0.0417" value="0"><span id="tt">loading…</span></div>
++  <div class="bar"><input id="scrub" type="range" min="0" max="1" step="0.0417" value="0"><span id="tt">loading…</span></div>
+ </main>
++<script src="src/song.js"></script>
+ <script src="src/core.js"></script>
+ <script src="src/clawd.js"></script>
+ <script src="src/cast.js"></script>
+@@ -28,14 +29,8 @@
+ <script src="src/lyrics.js"></script>
+ <script src="src/timeline.js"></script>
+ <script>const CAST = {};  // guest characters shared between chapters (e.g. for the curtain call)</script>
+-<script src="src/ch/c01_lab.js"></script>
+-<script src="src/ch/c02_chorus1.js"></script>
+-<script src="src/ch/c03_takeoff.js"></script>
+-<script src="src/ch/c04_chorus2.js"></script>
+-<script src="src/ch/c05_obsolete.js"></script>
+-<script src="src/ch/c06_chorus3.js"></script>
+-<script src="src/ch/c07_scale.js"></script>
+-<script src="src/ch/c08_chorus4.js"></script>
+-<script src="src/ch/c09_finale.js"></script>
++<script src="src/characters.js"></script>
++<script src="src/sets.js"></script>
++<!-- chapters: one <script src="src/ch/cNN_name.js"></script> per chapter, in time order -->
+ </body>
+ </html>
