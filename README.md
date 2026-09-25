@@ -1,5 +1,7 @@
 # paint-mv-skills
 
+[![《凌晨录音室》Midnight Studio：用本 skills 从零生成的 MV](demo/cover.jpg)](demo/midnight-studio.mp4)
+
 给 AI Agent 用的 MV 制作 skills：输入**一首歌的音频和歌词**，输出**一支手绘水彩风格的动画 MV（MP4）**。
 
 流程完全照 [PDoomVideo](https://github.com/JohnHeibel/PDoomVideo)（Claude 为《I'm Upping My P(doom)》画的 MV）的源码来做：
@@ -13,7 +15,7 @@
 
 用一首 86 秒的中文说唱（YuE2 生成，歌词新写）从零跑完全流程的结果，没有人工修改画面：
 
-[![《凌晨录音室》MV 截图](demo/stills.jpg)](demo/midnight-studio.mp4)
+![《凌晨录音室》MV 截图](demo/stills.jpg)
 
 ▶ [demo/midnight-studio.mp4](demo/midnight-studio.mp4)（1280×720，86.6 s）
 
@@ -25,7 +27,8 @@
 ![角色模型表](demo/cast.jpg)
 
 分镜和全部源码在 [`demo/project/`](demo/project/)：[`STORYBOARD.md`](demo/project/STORYBOARD.md)、
-角色 [`characters.js`](demo/project/src/characters.js)、共享场景 [`sets.js`](demo/project/src/sets.js)、五个章节 [`src/ch/`](demo/project/src/ch/)。
+角色 [`characters.js`](demo/project/src/characters.js)、共享场景 [`sets.js`](demo/project/src/sets.js)、五个章节 [`src/ch/`](demo/project/src/ch/)；
+封面由 [`poster.js`](demo/project/src/poster.js) 用同一套引擎画出（`node render.mjs --loop=poster --stills=0.4`）。
 
 ## 四个 skill
 
