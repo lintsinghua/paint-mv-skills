@@ -118,11 +118,8 @@ PDoomVideo's own code is not included: `fetch_upstream.mjs` downloads it at a pi
 
 - [PDoomVideo](https://github.com/JohnHeibel/PDoomVideo)：John Heibel，流程、引擎和画风的来源
 - [p5.js](https://p5js.org/)、[p5.brush](https://github.com/acamposuribe/p5.brush)
+- [LINUX DO](https://linux.do) 社区的佬友们
 
 ## 许可
 
 本仓库的文件以 [MIT](LICENSE) 许可发布；`fetch_upstream.mjs` 下载的 PDoomVideo 源码不在此许可范围内。
-
----
-
-感谢 [LINUX DO](https://linux.do) 社区的佬友们。
