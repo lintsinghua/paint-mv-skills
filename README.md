@@ -3,7 +3,6 @@
 [![《凌晨录音室》Midnight Studio：用本 skills 从零生成的 MV](demo/cover.jpg)](demo/midnight-studio.mp4)
 
 给 AI Agent 用的 MV 制作 skills：输入**一首歌的音频和歌词**，输出**一支手绘水彩风格的动画 MV（MP4）**。
-
 流程完全照 [PDoomVideo](https://github.com/JohnHeibel/PDoomVideo)（Claude 为《I'm Upping My P(doom)》画的 MV）的源码来做：
 每一帧都是歌曲时间的纯函数，由 p5.js + [p5.brush](https://github.com/acamposuribe/p5.brush) 在 headless Chrome 里画成水彩与墨线，
 导演写分镜、并行子代理一章一章作画、联系表检查，最后用 ffmpeg 和歌曲合成。
@@ -13,7 +12,7 @@
 
 ## 演示：《凌晨录音室》
 
-用一首 86 秒的中文说唱（YuE2 生成，歌词新写）从零跑完全流程的结果，没有人工修改画面：
+用一首 86 秒的中文说唱从零跑完全流程的结果，没有人工修改画面。歌词是新写的，歌用 [YuE2](https://noiz.ai/lp/yue2) 生成。
 
 ![《凌晨录音室》MV 截图](demo/stills.jpg)
 
@@ -65,6 +64,8 @@ node skills/paint-mv/scripts/fetch_upstream.mjs   # 拉取原作源码（见下�
 - Claude Code：`.claude/skills/` 或 `~/.claude/skills/`（本仓库同样有符号链接）
 
 然后对 Agent 说："用这首歌和歌词做一支 MV：`song.mp3`、`lyrics.lrc`"。
+
+想先试试又没有合适的歌，可以像演示那样自己做一首：我是在 [YuE2](https://noiz.ai/lp/yue2) 上贴歌词生成的。
 
 ## 手动使用
 
