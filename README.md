@@ -17,7 +17,7 @@
 
 ![《凌晨录音室》MV 截图](demo/stills.jpg)
 
-▶ [demo/midnight-studio.mp4](demo/midnight-studio.mp4)（1280×720，86.6 s）
+https://github.com/user-attachments/assets/8e291eb1-0761-4abd-b2c0-7ef165dc343a
 
 凌晨两点，全城都睡了，只有路口的红绿灯和一个戴大耳机的说唱少年还醒着。他在小录音室里把"没被听见的字"
 录成一束光，每段副歌光都更大，最后冲出窗户唱进城市的耳朵里；清晨升起的太阳，就是他录了一夜的那束光。
