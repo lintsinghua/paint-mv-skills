@@ -116,6 +116,7 @@ PDoomVideo's own code is not included: `fetch_upstream.mjs` downloads it at a pi
 
 ## 致谢
 
+- [YuE2](https://noiz.ai/lp/yue2) 
 - [PDoomVideo](https://github.com/JohnHeibel/PDoomVideo)：John Heibel，流程、引擎和画风的来源
 - [p5.js](https://p5js.org/)、[p5.brush](https://github.com/acamposuribe/p5.brush)
 - [LINUX DO](https://linux.do) 社区的佬友们
